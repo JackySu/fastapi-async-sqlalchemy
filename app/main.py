@@ -45,7 +45,6 @@ def unauthorized_error(detail: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail, headers={"WWW-Authenticate": "Bearer"})
 
 
-
 def _create_token(data: dict, expires: timedelta = timedelta(minutes=15)) -> str:
     to_encode = data.copy()
     expire = datetime.utcnow() + expires
@@ -62,7 +61,6 @@ def _decode_token(token: str) -> dict:
         raise unauthorized_error("Could not validate credentials")
 
 
-@app.get("/get_user", response_model=Users)
 async def get_user(email: str, session: AsyncSession = Depends(get_session)) -> Users:
     result = await session.execute(select(Users).where(Users.email == email))
     return result.scalar_one_or_none()
@@ -96,8 +94,11 @@ async def on_startup():
 @app.post("/signup")
 async def add_user(user: UserSignup, session: AsyncSession = Depends(get_session)):
     existed_user = await get_user(user.email, session)
-    if existed_user is not None or user.password is None:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email registered already or password invalid")
+    if existed_user is not None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email registered already")
+
+    if not user.password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password invalid")
 
     new_user = Users(email=user.email, username=user.username, phone=user.phone,
         hashed_password=get_password_hash(user.password + SALT),
@@ -107,7 +108,7 @@ async def add_user(user: UserSignup, session: AsyncSession = Depends(get_session
     session.add(new_user)
     await session.commit()
     await session.refresh(new_user)
-    return {"message": "success"}
+    return "Signup success"
 
 
 @app.post('/token', summary="Create access and refresh tokens for user", response_model=Token)
@@ -123,7 +124,9 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), session: AsyncSessi
 
 @app.get("/private")
 async def getPrivateEndPoint(current_user: Users = Depends(get_current_user)):
-    return current_user
+    user_data = current_user.__dict__
+    user_data.pop("hashed_password")
+    return user_data
 
 
 @app.get("/")
