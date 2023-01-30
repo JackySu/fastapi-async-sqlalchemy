@@ -1,0 +1,1 @@
+requires sqlalchemy >= 1.4.0 with async extension
