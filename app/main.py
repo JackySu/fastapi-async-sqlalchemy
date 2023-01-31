@@ -61,7 +61,7 @@ def _decode_token(token: str) -> dict:
         raise unauthorized_error("Could not validate credentials")
 
 
-async def get_user(email: str, session: AsyncSession = Depends(get_session)) -> Users:
+async def get_user_db(email: str, session: AsyncSession = Depends(get_session)) -> Users:
     result = await session.execute(select(Users).where(Users.email == email))
     return result.scalar_one_or_none()
 
@@ -80,7 +80,7 @@ async def get_current_user(token: str = Depends(oauth2_bearer), session: AsyncSe
     if expires < int(datetime.utcnow().timestamp()):
         raise unauthorized_error("Token expired")
 
-    user = await get_user(username, session)
+    user = await get_user_db(username, session)
     if user is None:
         raise error
     return user
@@ -93,7 +93,7 @@ async def on_startup():
 
 @app.post("/signup")
 async def add_user(user: UserSignup, session: AsyncSession = Depends(get_session)):
-    existed_user = await get_user(user.email, session)
+    existed_user = await get_user_db(user.email, session)
     if existed_user is not None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email registered already")
 
@@ -154,7 +154,7 @@ async def delete_user(session: AsyncSession = Depends(get_session), current_user
 
 @app.post('/token', summary="Create access and refresh tokens for user", response_model=Token)
 async def login(form: OAuth2PasswordRequestForm = Depends(), session: AsyncSession = Depends(get_session)):
-    user = await get_user(form.username, session)
+    user = await get_user_db(form.username, session)
     if not user or not verify_password(form.password, user.hashed_password):
         raise unauthorized_error("Incorrect username or password")
 
