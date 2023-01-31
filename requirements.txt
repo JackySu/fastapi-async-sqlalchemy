@@ -5,3 +5,4 @@ uvicorn
 python-multipart
 sqlalchemy>=1.4.0
 python-jose[cryptography]
+gunicorn

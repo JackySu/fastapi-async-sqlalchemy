@@ -15,9 +15,15 @@ class UserSignup(UserBase):
 
 # table = True => in database
 class Users(UserBase, table=True):
+    phone: Optional[str] = None
     hashed_password: str = None
     id: UUID = Field(default=None)
     is_active: bool = Field(default=True)
+
+
+class UserUpdate(UserBase):
+    email: Optional[str] = None
+    password: Optional[str] = None
 
 
 class Token(SQLModel):

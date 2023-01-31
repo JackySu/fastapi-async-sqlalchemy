@@ -12,7 +12,7 @@ from uuid import uuid4
 from jose import jwt, JWTError
 
 from db import get_session, init_db
-from models import Users, UserSignup, Token
+from models import Users, UserSignup, UserUpdate, Token
 
 from datetime import timedelta, datetime
 
@@ -109,6 +109,47 @@ async def add_user(user: UserSignup, session: AsyncSession = Depends(get_session
     await session.commit()
     await session.refresh(new_user)
     return "Signup success"
+
+
+@app.post("/update")
+async def modify_user(user: UserUpdate, session: AsyncSession = Depends(get_session), current_user: Users = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    data = user.dict(exclude_unset=True)
+    for k, v in data.items():
+        if v is not None:
+
+            if k == "password":
+                k, v = "hashed_password", get_password_hash(v + SALT)
+            elif k == "email":
+                result = await session.execute(select(Users).where(Users.email == v))
+                searched_user = result.scalar_one_or_none()
+                if searched_user and searched_user.id != current_user.id:  # if the queried user with same email is not user self
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"email {v} registered already")
+
+            setattr(current_user, k, v)
+
+    session.add(current_user)
+    await session.commit()  # flush is actually not needed here since commit will flush automatically
+    await session.flush()
+    return "Modify success"
+
+
+@app.post('/delete')
+async def delete_user(session: AsyncSession = Depends(get_session), current_user: Users = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+
+    result = await session.execute(select(Users).where(Users.id == current_user.id))
+    original_instance = result.scalar_one_or_none()
+    if not original_instance:
+        raise Exception("User not found")
+
+    await session.delete(original_instance)
+    await session.commit()
+    await session.flush()
+    return "Delete success"
 
 
 @app.post('/token', summary="Create access and refresh tokens for user", response_model=Token)
